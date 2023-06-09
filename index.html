@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Image Resize and Audio Compression Example</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<header>
+    <nav>
+        <ul>
+            <li><a href="#">Home</a></li>
+            <li><a href="#">About</a></li>
+            <li><a href="#">Gallery</a></li>
+            <li><a href="#">Contact</a></li>
+        </ul>
+    </nav>
+</header>
+
+<div class="container intro-container">
+    <div id="intro-content">
+        <h1>Welcome to the Manual Image Resize and Audio Compression App</h1>
+        <p>
+            This app allows you to manually resize images and compress audio files. 
+            Choose an image and specify the desired width and height to resize the image. 
+            For audio files, choose a file and adjust the compression ratio to reduce the file size.
+        </p>
+    </div>
+</div>
+<div class="container">
+    <div id="image-result" class="result"></div>
+    <div class="grid-container">
+        <input type="file" id="image-input" accept="image/*">
+        <label for="image-input" class="custom-file-upload">Choose Image</label>
+        <div>
+            <label for="width-input">Width:</label>
+            <input type="number" id="width-input" min="1" step="1">
+        </div>
+        <div>
+            <label for="height-input">Height:</label>
+            <input type="number" id="height-input" min="1" step="1">
+        </div>
+        <button id="resize-button">Resize Image</button>
+    </div>
+</div>
+<div class="container">
+    <div class="grid-container">
+        <div>
+            <input type="file" id="audio-input" accept="audio/*">
+            <label for="audio-input" class="custom-file-upload">Choose Audio</label>
+        </div>
+        <div>
+            <label for="compression-input">Compression Ratio:</label>
+            <input type="number" id="compression-input" min="0" step="0.1" value="0.5">
+        </div>
+        <button id="compress-button">Compress Audio</button>
+    </div>
+    <div id="audio-result" class="result"></div>
+</div>
+
+<footer>
+    <p>&copy; 2023 Your Website. All rights reserved.</p>
+</footer>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var imageInput = document.getElementById("image-input");
+        var widthInput = document.getElementById("width-input");
+        var heightInput = document.getElementById("height-input");
+        var resizeButton = document.getElementById("resize-button");
+        var resultDiv = document.getElementById("image-result");
+
+        resizeButton.addEventListener("click", function() {
+            var file = imageInput.files[0];
+            var width = parseInt(widthInput.value, 10);
+            var height = parseInt(heightInput.value, 10);
+
+            if (file && width && height) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var resultImage = new Image();
+                    resultImage.onload = function() {
+                        var canvas = document.createElement("canvas");
+                        var context = canvas.getContext("2d");
+
+                        // Mengatur dimensi kanvas
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        // Menggambar gambar pada kanvas dengan dimensi baru
+                        context.drawImage(resultImage, 0, 0, width, height);
+
+                        // Mendapatkan gambar yang telah diubah ukurannya sebagai data URL
+                        var resizedDataUrl = canvas.toDataURL("image/jpeg");
+
+                        // Membuat elemen gambar untuk menampilkan gambar yang telah diubah ukurannya
+                        var resizedImage = new Image();
+                        resizedImage.onload = function() {
+                            // Menampilkan gambar yang telah diubah ukurannya
+                            resultDiv.innerHTML = "";
+                            resultDiv.appendChild(resizedImage);
+                        };
+                        resizedImage.src = resizedDataUrl;
+                    };
+                    resultImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        var audioInput = document.getElementById("audio-input");
+        var compressButton = document.getElementById("compress-button");
+        var audioResultDiv = document.getElementById("audio-result");
+
+        compressButton.addEventListener("click", function() {
+            var file = audioInput.files[0];
+
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var audioData = e.target.result;
+
+                    // Membuat instance baru dari encoder MP3
+                    var mp3Encoder = new lamejs.Mp3Encoder(1, 44100, 128);
+
+                    // Mengkonversi data audio ke sampel PCM
+                    var samples = new Int16Array(audioData);
+                    var sampleRate = 44100;
+                    var leftChannel = [];
+                    for (var i = 0; i < samples.length; i++) {
+                        leftChannel.push(samples[i]);
+                    }
+
+                    // Mengodekan sampel PCM menjadi format MP3
+                    var mp3Data = mp3Encoder.encodeBuffer(leftChannel);
+
+                    // Menyelesaikan proses pengodean MP3
+                    var finalMp3Data = mp3Encoder.flush();
+
+                    // Menggabungkan data MP3
+                    var combinedData = new Int8Array(mp3Data.length + finalMp3Data.length);
+                    combinedData.set(mp3Data);
+                    combinedData.set(finalMp3Data, mp3Data.length);
+
+                    // Membuat Blob dari data MP3 yang telah digabungkan
+                    var compressedBlob = new Blob([combinedData.buffer], { type: 'audio/mp3' });
+
+                    // Membuat URL untuk Blob audio yang telah dikompres
+                    var compressedUrl = URL.createObjectURL(compressedBlob);
+
+                    // Membuat elemen audio untuk memutar audio yang telah dikompres
+                    var audioElement = document.createElement('audio');
+                    audioElement.src = compressedUrl;
+                    audioElement.controls = true;
+
+                    // Menghapus hasil audio sebelumnya
+                    audioResultDiv.innerHTML = "";
+
+                    // Menambahkan elemen audio ke dalam div hasil audio
+                    audioResultDiv.appendChild(audioElement);
+
+                    // Membuat elemen anchor dengan atribut download
+                    var downloadLink = document.createElement('a');
+                    downloadLink.href = compressedUrl;
+                    downloadLink.download = 'compressed_audio.mp3';
+
+                    // Memicu event klik pada elemen anchor
+                    downloadLink.click();
+
+                    // Membersihkan URL dan elemen anchor
+                    URL.revokeObjectURL(compressedUrl);
+                    downloadLink.remove();
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
